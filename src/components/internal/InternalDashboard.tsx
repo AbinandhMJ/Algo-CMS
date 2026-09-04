@@ -9,6 +9,7 @@ import {
   Building2,
   CheckCircle2,
   Plus,
+  CalendarRange,
 } from 'lucide-react';
 import { Project, Task, Invoice, Proposal, ActivityEvent, Client } from '../../types';
 
@@ -19,7 +20,7 @@ interface InternalDashboardProps {
   proposals: Proposal[];
   clients: Client[];
   activity: ActivityEvent[];
-  onNavigate: (tab: 'clients' | 'proposals' | 'projects' | 'invoices' | 'workspace') => void;
+  onNavigate: (tab: 'clients' | 'proposals' | 'projects' | 'timeline' | 'invoices' | 'workspace') => void;
   onOpenCreateProposal: () => void;
   onOpenCreateClient: () => void;
 }
@@ -57,7 +58,16 @@ export const InternalDashboard: React.FC<InternalDashboardProps> = ({
             Algotricz internal workflow metrics, pending client actions, and live delivery feed.
           </p>
         </div>
-        <div className="flex items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-2.5">
+          <button
+            id="quick-view-gantt-btn"
+            type="button"
+            onClick={() => onNavigate('timeline')}
+            className="flex items-center gap-1.5 rounded border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-800 hover:bg-slate-50"
+          >
+            <CalendarRange className="h-3.5 w-3.5 text-slate-600" />
+            Gantt Timeline
+          </button>
           <button
             id="quick-add-client-btn"
             type="button"

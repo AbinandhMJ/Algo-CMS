@@ -10,19 +10,32 @@ import {
   X,
   CreditCard,
   FileSpreadsheet,
+  Sparkles,
 } from 'lucide-react';
-import { Invoice, Client, Project, GoogleWorkspaceState } from '../../types';
+import { Invoice, Client, Project, Milestone, Task, GoogleWorkspaceState } from '../../types';
+import { InvoiceGeneratorModal } from './InvoiceGeneratorModal';
 
 interface InvoicesViewProps {
   invoices: Invoice[];
   clients: Client[];
   projects: Project[];
+  milestones?: Milestone[];
+  tasks?: Task[];
   googleWorkspace: GoogleWorkspaceState;
   onCreateInvoice: (data: {
     clientId: string;
-    projectId?: string;
-    lineItems: { label: string; amount: number }[];
+    projectId?: string | null;
+    lineItems: { label: string; amount: number; quantity?: number; unitPrice?: number }[];
     dueDate: string;
+    invoiceNumber?: string;
+    issuedDate?: string;
+    subtotal?: number;
+    taxRate?: number;
+    taxAmount?: number;
+    discountAmount?: number;
+    notes?: string;
+    currency?: string;
+    status?: Invoice['status'];
   }) => void;
   onSendInvoice: (invoiceId: string) => void;
   onMarkInvoicePaid: (invoiceId: string) => void;
@@ -34,6 +47,8 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
   invoices,
   clients,
   projects,
+  milestones = [],
+  tasks = [],
   googleWorkspace,
   onCreateInvoice,
   onSendInvoice,
@@ -46,6 +61,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
   );
   const [statusFilter, setStatusFilter] = useState<'all' | Invoice['status']>('all');
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isGeneratorModalOpen, setIsGeneratorModalOpen] = useState(false);
 
   // Form state
   const [targetClientId, setTargetClientId] = useState(clients[0]?.id || '');
@@ -122,7 +138,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
             Internal ledger, invoice generator, automated conversion receipts, and payment links.
           </p>
         </div>
-        <div className="flex items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-2.5">
           {onExportToGoogleSheets && (
             <button
               id="export-sheets-btn"
@@ -135,13 +151,22 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
             </button>
           )}
           <button
+            id="open-invoice-generator-btn"
+            type="button"
+            onClick={() => setIsGeneratorModalOpen(true)}
+            className="flex items-center gap-1.5 rounded border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-800 hover:bg-slate-50 shadow-xs"
+          >
+            <Receipt className="h-3.5 w-3.5 text-slate-700" />
+            <span>Invoice Generator</span>
+          </button>
+          <button
             id="open-create-invoice-modal-btn"
             type="button"
             onClick={() => setIsCreateModalOpen(true)}
             className="flex items-center gap-1.5 rounded bg-slate-900 px-3.5 py-1.5 text-xs font-medium text-white hover:bg-slate-800"
           >
             <Plus className="h-3.5 w-3.5" />
-            Issue New Invoice
+            Quick Issue
           </button>
         </div>
       </div>
@@ -513,6 +538,18 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
           </div>
         </div>
       )}
+      {/* Full Enterprise Invoice Generator Modal */}
+      <InvoiceGeneratorModal
+        isOpen={isGeneratorModalOpen}
+        onClose={() => setIsGeneratorModalOpen(false)}
+        clients={clients}
+        projects={projects}
+        milestones={milestones}
+        tasks={tasks}
+        onSaveInvoice={(invoiceData) => {
+          onCreateInvoice(invoiceData);
+        }}
+      />
     </div>
   );
 };

@@ -1,0 +1,196 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Internal Algotricz organization user",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "role": { "type": "string", "enum": ["admin", "member"] },
+        "avatarInitials": { "type": "string" }
+      },
+      "required": ["id", "name", "email", "role"]
+    },
+    "Client": {
+      "title": "Client",
+      "description": "Client company account",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "companyName": { "type": "string" },
+        "contactName": { "type": "string" },
+        "contactEmail": { "type": "string", "format": "email" },
+        "phone": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "portalAccessKey": { "type": "string" }
+      },
+      "required": ["id", "companyName", "contactName", "contactEmail"]
+    },
+    "ClientUser": {
+      "title": "ClientUser",
+      "description": "Client-side authenticated login user",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "clientId": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "name": { "type": "string" }
+      },
+      "required": ["id", "clientId", "email", "name"]
+    },
+    "Proposal": {
+      "title": "Proposal",
+      "description": "Service scope proposals sent to clients",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "clientId": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "totalAmount": { "type": "number" },
+        "status": { "type": "string", "enum": ["draft", "sent", "accepted", "rejected", "expired"] },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "clientId", "title", "totalAmount", "status"]
+    },
+    "Project": {
+      "title": "Project",
+      "description": "Active client project",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "clientId": { "type": "string" },
+        "proposalId": { "type": "string" },
+        "name": { "type": "string" },
+        "status": { "type": "string", "enum": ["active", "paused", "completed"] },
+        "createdAt": { "type": "string" },
+        "budget": { "type": "number" }
+      },
+      "required": ["id", "clientId", "name", "status"]
+    },
+    "Milestone": {
+      "title": "Milestone",
+      "description": "Project milestone deliverables",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "projectId": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "dueDate": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "submitted", "approved", "changes_requested"] }
+      },
+      "required": ["id", "projectId", "title", "dueDate", "status"]
+    },
+    "ProjectFile": {
+      "title": "ProjectFile",
+      "description": "Files uploaded to projects by internal team or clients",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "projectId": { "type": "string" },
+        "name": { "type": "string" },
+        "sizeBytes": { "type": "number" },
+        "mimeType": { "type": "string" },
+        "url": { "type": "string" },
+        "uploadedByName": { "type": "string" },
+        "uploadedAt": { "type": "string" }
+      },
+      "required": ["id", "projectId", "name", "url"]
+    },
+    "Invoice": {
+      "title": "Invoice",
+      "description": "Client invoices and payment receipts",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "invoiceNumber": { "type": "string" },
+        "clientId": { "type": "string" },
+        "projectId": { "type": "string" },
+        "totalAmount": { "type": "number" },
+        "status": { "type": "string", "enum": ["draft", "sent", "paid", "overdue"] },
+        "dueDate": { "type": "string" }
+      },
+      "required": ["id", "invoiceNumber", "clientId", "totalAmount", "status", "dueDate"]
+    },
+    "AppNotification": {
+      "title": "AppNotification",
+      "description": "Notifications for internal team or clients",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "recipientId": { "type": "string" },
+        "recipientType": { "type": "string", "enum": ["internal", "client"] },
+        "title": { "type": "string" },
+        "body": { "type": "string" },
+        "type": { "type": "string", "enum": ["proposal", "milestone", "invoice", "project", "system", "support"] },
+        "read": { "type": "boolean" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "recipientId", "recipientType", "title", "body", "read"]
+    },
+    "SupportIssue": {
+      "title": "SupportIssue",
+      "description": "Client support requests or issues raised on projects",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "clientId": { "type": "string" },
+        "projectId": { "type": "string" },
+        "clientUserId": { "type": "string" },
+        "clientUserName": { "type": "string" },
+        "subject": { "type": "string" },
+        "category": { "type": "string" },
+        "urgency": { "type": "string" },
+        "description": { "type": "string" },
+        "status": { "type": "string", "enum": ["open", "in_review", "resolved"] },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "clientId", "projectId", "subject", "description", "status"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Internal team accounts"
+    },
+    "/clients/{clientId}": {
+      "schema": "Client",
+      "description": "Client organizations"
+    },
+    "/clientUsers/{clientUserId}": {
+      "schema": "ClientUser",
+      "description": "Client logins scoped to client company"
+    },
+    "/proposals/{proposalId}": {
+      "schema": "Proposal",
+      "description": "Proposals scoped to client"
+    },
+    "/projects/{projectId}": {
+      "schema": "Project",
+      "description": "Projects scoped to client"
+    },
+    "/milestones/{milestoneId}": {
+      "schema": "Milestone",
+      "description": "Deliverable milestones"
+    },
+    "/files/{fileId}": {
+      "schema": "ProjectFile",
+      "description": "Deliverables and assets"
+    },
+    "/invoices/{invoiceId}": {
+      "schema": "Invoice",
+      "description": "Invoices scoped to client"
+    },
+    "/notifications/{notificationId}": {
+      "schema": "AppNotification",
+      "description": "Notification inbox"
+    },
+    "/supportIssues/{issueId}": {
+      "schema": "SupportIssue",
+      "description": "Support channel tickets"
+    }
+  }
+}

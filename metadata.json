@@ -2,5 +2,7 @@
   "name": "Algotricz Client Portal",
   "description": "Internal and client-facing portal for managing proposals, projects, milestones, tasks, files, comments, invoices, and automated Google Workspace scheduling and document storage.",
   "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
 }

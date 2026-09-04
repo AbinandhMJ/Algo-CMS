@@ -12,6 +12,9 @@ import {
   Invoice,
   AppNotification,
   GoogleWorkspaceState,
+  SupportIssue,
+  SupportIssueCategory,
+  SupportIssueUrgency,
 } from '../types';
 
 const INITIAL_USERS: User[] = [
@@ -66,6 +69,15 @@ const INITIAL_CLIENTS: Client[] = [
     createdAt: '2026-08-20T11:00:00Z',
     portalAccessKey: 'SOL-1033-SEC',
   },
+  {
+    id: 'client-aura',
+    companyName: 'Aura Clean Energy',
+    contactName: 'Nadia Thorne',
+    contactEmail: 'nadia@auraclean.com',
+    phone: '+1 (555) 390-1122',
+    createdAt: '2026-09-03T10:00:00Z',
+    portalAccessKey: 'AURA-7714-SEC',
+  },
 ];
 
 const INITIAL_CLIENT_USERS: ClientUser[] = [
@@ -86,6 +98,12 @@ const INITIAL_CLIENT_USERS: ClientUser[] = [
     clientId: 'client-solaria',
     email: 'evelyn.chen@solariahealth.org',
     name: 'Dr. Evelyn Chen',
+  },
+  {
+    id: 'cu-nadia',
+    clientId: 'client-aura',
+    email: 'nadia@auraclean.com',
+    name: 'Nadia Thorne',
   },
 ];
 
@@ -437,7 +455,39 @@ const INITIAL_NOTIFICATIONS: AppNotification[] = [
   },
 ];
 
+const INITIAL_SUPPORT_ISSUES: SupportIssue[] = [
+  {
+    id: 'iss-101',
+    clientId: 'client-apex',
+    projectId: 'proj-apex-recon',
+    clientUserId: 'cu-sarah',
+    clientUserName: 'Sarah Jenkins',
+    subject: 'Request for sandbox mock API keys for staging security audit',
+    category: 'technical_blocker',
+    urgency: 'urgent',
+    description: 'Our internal infosec team requires temporary staging credentials to validate data isolation before the upcoming milestone sign-off.',
+    status: 'in_review',
+    createdAt: '2026-09-02T11:30:00Z',
+  },
+  {
+    id: 'iss-102',
+    clientId: 'client-nova',
+    projectId: 'proj-manual-infra',
+    clientUserId: 'cu-marcus',
+    clientUserName: 'Marcus Vance',
+    subject: 'Query on telemetry ingestion frequency limits',
+    category: 'milestone_clarification',
+    urgency: 'normal',
+    description: 'Can we confirm whether edge nodes will default to 500ms heartbeat polling or 1s during battery conservation mode?',
+    status: 'open',
+    createdAt: '2026-09-03T08:15:00Z',
+  },
+];
+
 const STORAGE_KEY = 'algotricz_portal_store_v1';
+const AUTH_MODE_STORAGE_KEY = 'algotricz_auth_mode';
+const AUTH_CLIENT_USER_ID_KEY = 'algotricz_auth_client_user_id';
+const AUTH_INTERNAL_USER_ID_KEY = 'algotricz_auth_internal_user_id';
 
 export class PortalStore {
   users: User[];
@@ -452,7 +502,14 @@ export class PortalStore {
   activity: ActivityEvent[];
   invoices: Invoice[];
   notifications: AppNotification[];
+  supportIssues: SupportIssue[];
   googleWorkspace: GoogleWorkspaceState;
+
+  // Session state
+  authMode: 'client' | 'internal' | 'unauthenticated' = 'client';
+  activeClientUser: ClientUser | null = null;
+  activeInternalUser: User | null = null;
+
   private listeners: Set<() => void> = new Set();
 
   constructor() {
@@ -472,6 +529,7 @@ export class PortalStore {
         this.activity = parsed.activity || INITIAL_ACTIVITY;
         this.invoices = parsed.invoices || INITIAL_INVOICES;
         this.notifications = parsed.notifications || INITIAL_NOTIFICATIONS;
+        this.supportIssues = parsed.supportIssues || INITIAL_SUPPORT_ISSUES;
         this.googleWorkspace = parsed.googleWorkspace || {
           isConnected: false,
           userEmail: null,
@@ -493,6 +551,7 @@ export class PortalStore {
         this.activity = INITIAL_ACTIVITY;
         this.invoices = INITIAL_INVOICES;
         this.notifications = INITIAL_NOTIFICATIONS;
+        this.supportIssues = INITIAL_SUPPORT_ISSUES;
         this.googleWorkspace = {
           isConnected: false,
           userEmail: null,
@@ -515,6 +574,7 @@ export class PortalStore {
       this.activity = INITIAL_ACTIVITY;
       this.invoices = INITIAL_INVOICES;
       this.notifications = INITIAL_NOTIFICATIONS;
+      this.supportIssues = INITIAL_SUPPORT_ISSUES;
       this.googleWorkspace = {
         isConnected: false,
         userEmail: null,
@@ -523,6 +583,35 @@ export class PortalStore {
         calendarEventsCount: 0,
         driveFilesCount: 0,
       };
+    }
+
+    // Restore persisted session
+    const savedAuthMode = localStorage.getItem(AUTH_MODE_STORAGE_KEY) as 'client' | 'internal' | null;
+    const savedClientUserId = localStorage.getItem(AUTH_CLIENT_USER_ID_KEY);
+    const savedInternalUserId = localStorage.getItem(AUTH_INTERNAL_USER_ID_KEY);
+
+    if (savedAuthMode === 'internal' && savedInternalUserId) {
+      const u = this.users.find((user) => user.id === savedInternalUserId);
+      if (u) {
+        this.authMode = 'internal';
+        this.activeInternalUser = u;
+      } else {
+        this.authMode = 'internal';
+        this.activeInternalUser = this.users[0];
+      }
+    } else if (savedAuthMode === 'client' && savedClientUserId) {
+      const cu = this.clientUsers.find((user) => user.id === savedClientUserId);
+      if (cu) {
+        this.authMode = 'client';
+        this.activeClientUser = cu;
+      } else {
+        this.authMode = 'client';
+        this.activeClientUser = this.clientUsers[0];
+      }
+    } else {
+      // Default to client mode with first client for immediate seamless preview
+      this.authMode = 'client';
+      this.activeClientUser = this.clientUsers[0];
     }
   }
 
@@ -553,6 +642,7 @@ export class PortalStore {
           activity: this.activity,
           invoices: this.invoices,
           notifications: this.notifications,
+          supportIssues: this.supportIssues,
           googleWorkspace: this.googleWorkspace,
         })
       );
@@ -563,8 +653,10 @@ export class PortalStore {
 
   // --- Strict Client-Side Scoping Service Layer ---
   getScopedClientData(clientId: string) {
+    const clientUser = this.clientUsers.find((u) => u.clientId === clientId);
     return {
       client: this.clients.find((c) => c.id === clientId) || null,
+      clientUser: clientUser || null,
       proposals: this.proposals.filter((p) => p.clientId === clientId),
       projects: this.projects.filter((p) => p.clientId === clientId),
       invoices: this.invoices.filter((inv) => inv.clientId === clientId),
@@ -588,7 +680,184 @@ export class PortalStore {
         const proj = this.projects.find((p) => p.id === act.projectId);
         return proj && proj.clientId === clientId;
       }),
+      supportIssues: this.supportIssues.filter((iss) => iss.clientId === clientId),
+      notifications: this.notifications.filter((n) => {
+        return (
+          n.recipientType === 'client' &&
+          (n.recipientId === clientId || (clientUser && n.recipientId === clientUser.id))
+        );
+      }),
     };
+  }
+
+  // --- Session Management ---
+  authenticateClientUser(clientUser: ClientUser) {
+    this.setClientSession(clientUser);
+  }
+
+  setAuthMode(mode: 'client' | 'internal' | 'unauthenticated') {
+    this.authMode = mode;
+    if (mode === 'internal') {
+      this.activeInternalUser = this.users[0];
+      this.activeClientUser = null;
+      localStorage.setItem(AUTH_MODE_STORAGE_KEY, 'internal');
+      localStorage.setItem(AUTH_INTERNAL_USER_ID_KEY, this.users[0].id);
+      localStorage.removeItem(AUTH_CLIENT_USER_ID_KEY);
+    } else if (mode === 'client') {
+      if (!this.activeClientUser) {
+        this.activeClientUser = this.clientUsers[0];
+      }
+      this.activeInternalUser = null;
+      localStorage.setItem(AUTH_MODE_STORAGE_KEY, 'client');
+      localStorage.setItem(AUTH_CLIENT_USER_ID_KEY, this.activeClientUser.id);
+      localStorage.removeItem(AUTH_INTERNAL_USER_ID_KEY);
+    } else {
+      this.logout();
+    }
+    this.notify();
+  }
+
+  signOut() {
+    this.logout();
+  }
+
+  setClientSession(clientUser: ClientUser) {
+    this.authMode = 'client';
+    this.activeClientUser = clientUser;
+    this.activeInternalUser = null;
+    localStorage.setItem(AUTH_MODE_STORAGE_KEY, 'client');
+    localStorage.setItem(AUTH_CLIENT_USER_ID_KEY, clientUser.id);
+    localStorage.removeItem(AUTH_INTERNAL_USER_ID_KEY);
+    this.notify();
+  }
+
+  setInternalSession(user: User) {
+    this.authMode = 'internal';
+    this.activeInternalUser = user;
+    this.activeClientUser = null;
+    localStorage.setItem(AUTH_MODE_STORAGE_KEY, 'internal');
+    localStorage.setItem(AUTH_INTERNAL_USER_ID_KEY, user.id);
+    localStorage.removeItem(AUTH_CLIENT_USER_ID_KEY);
+    this.notify();
+  }
+
+  logout() {
+    this.authMode = 'unauthenticated';
+    this.activeClientUser = null;
+    this.activeInternalUser = null;
+    localStorage.removeItem(AUTH_MODE_STORAGE_KEY);
+    localStorage.removeItem(AUTH_CLIENT_USER_ID_KEY);
+    localStorage.removeItem(AUTH_INTERNAL_USER_ID_KEY);
+    this.notify();
+  }
+
+  // --- Client Profile & Account Settings ---
+  updateClientProfile(clientId: string, updates: Partial<Client>) {
+    const client = this.clients.find((c) => c.id === clientId);
+    if (!client) return;
+    Object.assign(client, updates);
+    this.notify();
+  }
+
+  updateClientUser(clientUserId: string, updates: Partial<ClientUser>) {
+    const cu = this.clientUsers.find((u) => u.id === clientUserId);
+    if (!cu) return;
+    Object.assign(cu, updates);
+    this.notify();
+  }
+
+  // --- Support Issues Channel ---
+  createSupportIssue(data: {
+    clientId: string;
+    projectId: string;
+    clientUserId: string;
+    clientUserName: string;
+    subject: string;
+    category: SupportIssueCategory;
+    urgency: SupportIssueUrgency;
+    description: string;
+  }): SupportIssue {
+    const issue: SupportIssue = {
+      id: `iss-${Date.now()}`,
+      clientId: data.clientId,
+      projectId: data.projectId,
+      clientUserId: data.clientUserId,
+      clientUserName: data.clientUserName,
+      subject: data.subject,
+      category: data.category,
+      urgency: data.urgency,
+      description: data.description,
+      status: 'open',
+      createdAt: new Date().toISOString(),
+    };
+    this.supportIssues.unshift(issue);
+
+    const client = this.clients.find((c) => c.id === data.clientId);
+    const proj = this.projects.find((p) => p.id === data.projectId);
+
+    // Activity log
+    this.activity.unshift({
+      id: `act-${Date.now()}`,
+      projectId: data.projectId,
+      type: 'support_issue_raised',
+      payload: {
+        title: `Support Ticket: ${data.subject}`,
+        description: `Raised by ${data.clientUserName} (${client?.companyName}). Urgency: ${data.urgency.toUpperCase()}.`,
+        actorName: data.clientUserName,
+        extraDetails: data.description,
+      },
+      createdAt: new Date().toISOString(),
+    });
+
+    // Alert internal team
+    this.notifications.unshift({
+      id: `notif-${Date.now()}`,
+      recipientId: 'user-admin',
+      recipientType: 'internal',
+      title: `Support Ticket (${data.urgency.toUpperCase()}): ${data.subject}`,
+      body: `${data.clientUserName} (${client?.companyName}) flagged an issue on ${proj?.name || 'Project'}: "${data.subject}"`,
+      type: 'support',
+      read: false,
+      createdAt: new Date().toISOString(),
+      linkTab: 'dashboard',
+    });
+
+    this.notify();
+    return issue;
+  }
+
+  resolveSupportIssue(issueId: string, resolutionNotes?: string) {
+    const issue = this.supportIssues.find((i) => i.id === issueId);
+    if (!issue) return;
+    issue.status = 'resolved';
+    issue.resolvedAt = new Date().toISOString();
+    issue.resolutionNotes = resolutionNotes || 'Resolved by Algotricz operations team.';
+
+    // Notify client
+    this.notifications.unshift({
+      id: `notif-${Date.now()}`,
+      recipientId: issue.clientUserId,
+      recipientType: 'client',
+      title: 'Support Ticket Resolved',
+      body: `Your ticket "${issue.subject}" has been marked as resolved: ${issue.resolutionNotes}`,
+      type: 'support',
+      read: false,
+      createdAt: new Date().toISOString(),
+      linkTab: 'support',
+    });
+
+    this.notify();
+  }
+
+  markAllNotificationsRead(recipientId: string) {
+    let changed = false;
+    this.notifications.forEach((n) => {
+      if (n.recipientId === recipientId && !n.read) {
+        n.read = true;
+        changed = true;
+      }
+    });
+    if (changed) this.notify();
   }
 
   // --- Client CRUD ---
@@ -1047,11 +1316,28 @@ export class PortalStore {
   createInvoice(data: {
     clientId: string;
     projectId?: string | null;
-    lineItems: { label: string; amount: number }[];
+    lineItems: { label: string; amount: number; quantity?: number; unitPrice?: number }[];
     dueDate: string;
+    invoiceNumber?: string;
+    issuedDate?: string;
+    subtotal?: number;
+    taxRate?: number;
+    taxAmount?: number;
+    discountAmount?: number;
+    notes?: string;
+    currency?: string;
+    status?: Invoice['status'];
   }): Invoice {
-    const totalAmount = data.lineItems.reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0);
-    const invoiceNumber = `INV-ALG-${new Date().getFullYear()}-${String(this.invoices.length + 1).padStart(3, '0')}`;
+    const calculatedSubtotal = data.lineItems.reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0);
+    const subtotal = data.subtotal !== undefined ? data.subtotal : calculatedSubtotal;
+    const taxAmount = data.taxAmount || 0;
+    const discountAmount = data.discountAmount || 0;
+    const totalAmount = Math.max(0, subtotal + taxAmount - discountAmount);
+
+    const invoiceNumber =
+      data.invoiceNumber ||
+      `INV-ALG-${new Date().getFullYear()}-${String(this.invoices.length + 1).padStart(3, '0')}`;
+
     const invoice: Invoice = {
       id: `inv-${Date.now()}`,
       invoiceNumber,
@@ -1059,8 +1345,14 @@ export class PortalStore {
       projectId: data.projectId || null,
       lineItems: data.lineItems.map((li, idx) => ({ id: `li-${Date.now()}-${idx}`, ...li })),
       totalAmount,
-      status: 'draft',
-      issuedDate: new Date().toISOString().split('T')[0],
+      subtotal,
+      taxRate: data.taxRate,
+      taxAmount: data.taxAmount,
+      discountAmount: data.discountAmount,
+      notes: data.notes,
+      currency: data.currency || 'USD',
+      status: data.status || 'draft',
+      issuedDate: data.issuedDate || new Date().toISOString().split('T')[0],
       dueDate: data.dueDate,
       razorpayPaymentLinkId: `plink_${data.clientId.replace(/[^a-zA-Z0-9]/g, '')}_${Date.now()}`,
       paidAt: null,

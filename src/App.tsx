@@ -17,12 +17,14 @@ import { InternalDashboard } from './components/internal/InternalDashboard';
 import { ClientsView } from './components/internal/ClientsView';
 import { ProposalsView } from './components/internal/ProposalsView';
 import { ProjectsView } from './components/internal/ProjectsView';
+import { GanttTimelineView } from './components/internal/GanttTimelineView';
 import { InvoicesView } from './components/internal/InvoicesView';
 import { WorkspaceSyncView } from './components/internal/WorkspaceSyncView';
 import { ClientPortalView } from './components/client/ClientPortalView';
 import { RazorpayModal } from './components/common/RazorpayModal';
 import { ConfirmationModal } from './components/common/ConfirmationModal';
-import { Invoice, Milestone, Project, Proposal, Client } from './types';
+import { AuthView } from './components/auth/AuthView';
+import { Invoice, Milestone, Project, Proposal, Client, ClientUser } from './types';
 import { CheckCircle2, AlertCircle, X } from 'lucide-react';
 
 export default function App() {
@@ -60,12 +62,29 @@ export default function App() {
   }, []);
 
   // Navigation State
-  const [currentMode, setCurrentMode] = useState<'internal' | 'client'>('internal');
+  const [currentMode, setCurrentMode] = useState<'internal' | 'client'>(
+    store.authMode === 'client' ? 'client' : 'internal'
+  );
   const [internalTab, setInternalTab] = useState<InternalViewTab>('dashboard');
   const [clientTab, setClientTab] = useState<ClientViewTab>('overview');
   const [activeClientId, setActiveClientId] = useState<string>(
-    store.clients[0]?.id || 'client-apex'
+    store.activeClientUser?.clientId || store.clients[0]?.id || 'client-apex'
   );
+
+  const handleClientLogin = (user: ClientUser) => {
+    store.authenticateClientUser(user);
+    setActiveClientId(user.clientId);
+    setCurrentMode('client');
+    setClientTab('overview');
+    showToast(`Signed into Client Portal as ${user.name} (${user.email}).`, 'success');
+  };
+
+  const handleInternalLogin = () => {
+    store.setAuthMode('internal');
+    setCurrentMode('internal');
+    setInternalTab('dashboard');
+    showToast('Signed into Algotricz Lead Workspace.', 'success');
+  };
 
   // Razorpay Checkout Modal
   const [razorpayInvoice, setRazorpayInvoice] = useState<Invoice | null>(null);
@@ -332,6 +351,41 @@ export default function App() {
     );
   };
 
+  if (store.authMode === 'unauthenticated') {
+    return (
+      <div className="min-h-screen bg-slate-100 font-sans text-slate-800 antialiased selection:bg-slate-200">
+        {statusToast && (
+          <div
+            id="status-toast-banner"
+            className="fixed top-4 right-4 z-50 flex max-w-md items-center justify-between gap-3 rounded-md border border-slate-300 bg-white p-3.5 shadow-md text-xs"
+          >
+            <div className="flex items-center gap-2">
+              {statusToast.type === 'success' ? (
+                <CheckCircle2 className="h-4 w-4 text-emerald-700 shrink-0" />
+              ) : statusToast.type === 'error' ? (
+                <AlertCircle className="h-4 w-4 text-red-700 shrink-0" />
+              ) : (
+                <div className="h-2 w-2 rounded-full bg-blue-600 shrink-0" />
+              )}
+              <span className="font-medium text-slate-900 leading-snug">{statusToast.message}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setStatusToast(null)}
+              className="rounded p-1 text-slate-400 hover:text-slate-700"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        )}
+        <AuthView
+          onClientAuthenticated={handleClientLogin}
+          onInternalAuthenticated={handleInternalLogin}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-100/70 font-sans text-slate-800 antialiased selection:bg-slate-200">
       {/* Navigation Bar */}
@@ -344,9 +398,23 @@ export default function App() {
         onClientTabChange={(tab) => setClientTab(tab)}
         clients={store.clients}
         activeClientId={activeClientId}
-        onClientSelect={(cId) => setActiveClientId(cId)}
+        onClientSelect={(cId) => {
+          setActiveClientId(cId);
+          const cu = store.clientUsers.find((u) => u.clientId === cId);
+          if (cu) store.authenticateClientUser(cu);
+        }}
         notifications={store.notifications}
         onMarkNotificationRead={(id) => store.markNotificationRead(id)}
+        onMarkAllNotificationsRead={(recId) => store.markAllNotificationsRead(recId)}
+        recipientId={
+          currentMode === 'client'
+            ? store.activeClientUser?.id || `cu-${activeClientId}`
+            : 'internal-lead'
+        }
+        onLogout={() => {
+          store.signOut();
+          showToast('Signed out of Algotricz portal.', 'info');
+        }}
         googleWorkspace={store.googleWorkspace}
         onConnectGoogleWorkspace={handleConnectGoogleWorkspace}
         onDisconnectGoogleWorkspace={handleDisconnectGoogleWorkspace}
@@ -409,6 +477,10 @@ export default function App() {
                 }}
                 onSwitchToClientView={(clientId) => {
                   setActiveClientId(clientId);
+                  const cu = store.clientUsers.find((u) => u.clientId === clientId);
+                  if (cu) {
+                    store.authenticateClientUser(cu);
+                  }
                   setCurrentMode('client');
                   setClientTab('overview');
                   showToast(`Switched view to client portal for ${store.clients.find(c => c.id === clientId)?.companyName}.`, 'info');
@@ -496,11 +568,42 @@ export default function App() {
               />
             )}
 
+            {internalTab === 'timeline' && (
+              <GanttTimelineView
+                projects={store.projects}
+                milestones={store.milestones}
+                tasks={store.tasks}
+                clients={store.clients}
+                users={store.users}
+                googleWorkspace={store.googleWorkspace}
+                onSyncMilestoneToCalendar={(milestone, project) => {
+                  handleSyncMilestoneToCalendar(milestone, project);
+                }}
+                onSubmitMilestone={(milestoneId, notes) => {
+                  store.submitMilestone(milestoneId, notes);
+                  showToast('Milestone submitted for client review.', 'success');
+                }}
+                onUpdateTaskStatus={(taskId, status) => {
+                  store.updateTaskStatus(taskId, status);
+                }}
+                onCreateMilestone={(data) => {
+                  store.createMilestone(data);
+                  showToast('Milestone created.', 'success');
+                }}
+                onCreateTask={(data) => {
+                  store.createTask(data);
+                  showToast('Task assigned.', 'success');
+                }}
+              />
+            )}
+
             {internalTab === 'invoices' && (
               <InvoicesView
                 invoices={store.invoices}
                 clients={store.clients}
                 projects={store.projects}
+                milestones={store.milestones}
+                tasks={store.tasks}
                 googleWorkspace={store.googleWorkspace}
                 onCreateInvoice={(data) => {
                   const inv = store.createInvoice(data);
@@ -555,6 +658,7 @@ export default function App() {
           activeClient && (
             <ClientPortalView
               client={activeClient}
+              clientUser={store.activeClientUser}
               activeTab={clientTab}
               onTabChange={(tab) => setClientTab(tab)}
               projects={scopedClientData.projects}
@@ -565,6 +669,23 @@ export default function App() {
               files={scopedClientData.files}
               comments={scopedClientData.comments}
               activity={scopedClientData.activity}
+              supportIssues={scopedClientData.supportIssues}
+              onCreateSupportIssue={(data) => {
+                store.createSupportIssue(data);
+                showToast('Support ticket dispatched to project architect.', 'success');
+              }}
+              onAddFile={(projectId, fileData) => {
+                store.addFile({
+                  ...fileData,
+                  projectId,
+                  uploadedBy: store.activeClientUser?.name || activeClient.contactName,
+                });
+                showToast(`File "${fileData.name}" uploaded to project.`, 'success');
+              }}
+              onUpdateClientProfile={(updated) => {
+                store.updateClientProfile(activeClient.id, updated);
+                showToast('Organization settings updated.', 'success');
+              }}
               onAcceptProposal={(proposalId) => handleAcceptProposal(proposalId)}
               onRejectProposal={(proposalId, reason) =>
                 handleRejectProposal(proposalId, reason)
@@ -577,8 +698,8 @@ export default function App() {
                 store.addComment({
                   projectId,
                   authorType: 'client',
-                  authorUserId: activeClient.id,
-                  authorName: `${activeClient.contactName} (${activeClient.companyName})`,
+                  authorUserId: store.activeClientUser?.id || activeClient.id,
+                  authorName: `${store.activeClientUser?.name || activeClient.contactName} (${activeClient.companyName})`,
                   body: comment,
                 });
                 showToast('Comment posted to project thread.', 'success');

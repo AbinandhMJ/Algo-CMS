@@ -31,6 +31,8 @@ export interface ProposalLineItem {
   id: string;
   label: string;
   amount: number;
+  quantity?: number;
+  unitPrice?: number;
 }
 
 export interface Proposal {
@@ -94,6 +96,15 @@ export interface Milestone {
   createdAt: string;
 }
 
+export type ProjectFileCategory =
+  | 'brand_asset'
+  | 'specification'
+  | 'architecture'
+  | 'feedback_screenshot'
+  | 'deliverable'
+  | 'contract'
+  | 'other';
+
 export interface ProjectFile {
   id: string;
   projectId: string;
@@ -103,6 +114,8 @@ export interface ProjectFile {
   sizeBytes: number;
   mimeType: string;
   url: string;
+  category?: ProjectFileCategory;
+  uploadedBy?: string;
   uploadedByUserId?: string | null;
   uploadedByClientUserId?: string | null;
   uploadedByName: string;
@@ -138,7 +151,8 @@ export interface ActivityEvent {
     | 'comment_added'
     | 'invoice_generated'
     | 'invoice_paid'
-    | 'workspace_synced';
+    | 'workspace_synced'
+    | 'support_issue_raised';
   payload: {
     title: string;
     description: string;
@@ -146,6 +160,32 @@ export interface ActivityEvent {
     extraDetails?: string;
   };
   createdAt: string;
+}
+
+export type SupportIssueCategory =
+  | 'feature_scope'
+  | 'technical_blocker'
+  | 'billing_query'
+  | 'milestone_clarification'
+  | 'general_support';
+
+export type SupportIssueStatus = 'open' | 'in_review' | 'resolved';
+export type SupportIssueUrgency = 'normal' | 'urgent' | 'blocker';
+
+export interface SupportIssue {
+  id: string;
+  clientId: string;
+  projectId: string;
+  clientUserId: string;
+  clientUserName: string;
+  subject: string;
+  category: SupportIssueCategory;
+  urgency: SupportIssueUrgency;
+  description: string;
+  status: SupportIssueStatus;
+  createdAt: string;
+  resolvedAt?: string;
+  resolutionNotes?: string;
 }
 
 export type InvoiceStatus = 'draft' | 'sent' | 'paid' | 'overdue';
@@ -157,6 +197,12 @@ export interface Invoice {
   projectId?: string | null;
   lineItems: ProposalLineItem[];
   totalAmount: number;
+  subtotal?: number;
+  taxRate?: number;
+  taxAmount?: number;
+  discountAmount?: number;
+  notes?: string;
+  currency?: string;
   status: InvoiceStatus;
   dueDate: string;
   issuedDate: string;
@@ -170,9 +216,11 @@ export interface AppNotification {
   recipientType: 'internal' | 'client';
   title: string;
   body: string;
-  type: 'proposal' | 'milestone' | 'invoice' | 'project' | 'system';
+  type: 'proposal' | 'milestone' | 'invoice' | 'project' | 'system' | 'support';
   read: boolean;
   createdAt: string;
+  linkTab?: string;
+  targetId?: string;
 }
 
 export interface GoogleWorkspaceState {

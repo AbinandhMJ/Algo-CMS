@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import {
   Client,
+  ClientUser,
   Project,
   Proposal,
   Invoice,
@@ -26,11 +27,19 @@ import {
   ProjectFile,
   ProjectComment,
   ActivityEvent,
+  SupportIssue,
+  SupportIssueCategory,
+  SupportIssueUrgency,
+  ProjectFileCategory,
 } from '../../types';
 import { ClientViewTab } from '../Navbar';
+import { ClientFileUploadZone } from './ClientFileUploadZone';
+import { ClientSupportView } from './ClientSupportView';
+import { ClientAccountSettingsView } from './ClientAccountSettingsView';
 
 interface ClientPortalViewProps {
   client: Client;
+  clientUser?: ClientUser | null;
   activeTab: ClientViewTab;
   onTabChange: (tab: ClientViewTab) => void;
   projects: Project[];
@@ -41,6 +50,33 @@ interface ClientPortalViewProps {
   files: ProjectFile[];
   comments: ProjectComment[];
   activity: ActivityEvent[];
+  supportIssues?: SupportIssue[];
+  onCreateSupportIssue?: (data: {
+    clientId: string;
+    projectId: string;
+    clientUserId: string;
+    clientUserName: string;
+    subject: string;
+    category: SupportIssueCategory;
+    urgency: SupportIssueUrgency;
+    description: string;
+  }) => void;
+  onAddFile?: (
+    projectId: string,
+    fileData: {
+      name: string;
+      url: string;
+      sizeBytes: number;
+      category: ProjectFileCategory;
+      uploadedBy: string;
+    }
+  ) => void;
+  onUpdateClientProfile?: (updated: {
+    companyName: string;
+    contactName: string;
+    contactEmail: string;
+    phone?: string;
+  }) => void;
   onAcceptProposal: (proposalId: string) => void;
   onRejectProposal: (proposalId: string, reason: string) => void;
   onApproveMilestone: (milestoneId: string) => void;
@@ -51,6 +87,7 @@ interface ClientPortalViewProps {
 
 export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
   client,
+  clientUser,
   activeTab,
   onTabChange,
   projects,
@@ -61,6 +98,10 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
   files,
   comments,
   activity,
+  supportIssues = [],
+  onCreateSupportIssue,
+  onAddFile,
+  onUpdateClientProfile,
   onAcceptProposal,
   onRejectProposal,
   onApproveMilestone,
@@ -165,7 +206,7 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
       {activeTab === 'overview' && (
         <div className="space-y-6">
           {/* Key Metrics */}
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <div
               className="cursor-pointer rounded-lg border border-slate-200 bg-white p-5 hover:border-slate-300 transition-colors"
               onClick={() => onTabChange('projects')}
@@ -210,6 +251,21 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
                 <span className="text-xs font-normal text-slate-500">
                   (${totalDueAmount.toLocaleString()})
                 </span>
+              </div>
+            </div>
+
+            <div
+              className="cursor-pointer rounded-lg border border-slate-200 bg-white p-5 hover:border-slate-300 transition-colors"
+              onClick={() => onTabChange('support')}
+            >
+              <span className="text-xs font-normal text-slate-500 uppercase tracking-wider">
+                Open Support Tickets
+              </span>
+              <div className="mt-2 flex items-baseline gap-2">
+                <span className="text-2xl font-medium text-slate-900">
+                  {supportIssues.filter((s) => s.status !== 'resolved').length}
+                </span>
+                <span className="text-xs font-normal text-slate-500">direct queries</span>
               </div>
             </div>
           </div>
@@ -367,8 +423,25 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
           </div>
 
           {proposals.length === 0 ? (
-            <div className="rounded-lg border border-dashed border-slate-300 p-8 text-center text-xs font-normal text-slate-500">
-              No proposals currently on file for {client.companyName}.
+            <div className="rounded-xl border border-dashed border-slate-300 bg-white p-10 text-center">
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-500">
+                <FileText className="h-6 w-6" />
+              </div>
+              <h3 className="mt-4 text-sm font-semibold text-slate-900">
+                No Proposals Pending for {client.companyName}
+              </h3>
+              <p className="mt-1.5 max-w-md mx-auto text-xs text-slate-500 leading-relaxed">
+                When the Algotricz architecture team drafts a project scope, deliverables agreement, or milestone schedule, it will appear here for review and digital sign-off.
+              </p>
+              <div className="mt-5 flex justify-center">
+                <button
+                  type="button"
+                  onClick={() => onTabChange('support')}
+                  className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+                >
+                  Contact Account Lead
+                </button>
+              </div>
             </div>
           ) : (
             <div className="space-y-4">
@@ -645,33 +718,49 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
                   </div>
                 </div>
 
-                {/* Downloadable Files */}
-                <div className="rounded-lg border border-slate-200 bg-white p-5 space-y-3">
-                  <h3 className="text-xs font-medium text-slate-900 uppercase tracking-wider">
-                    Deliverable Files ({projectFiles.length})
-                  </h3>
+                {/* Downloadable Deliverable Files & Client Upload Zone */}
+                <div className="rounded-xl border border-slate-200 bg-white p-5 space-y-4">
+                  <div>
+                    <h3 className="text-xs font-semibold text-slate-900 uppercase tracking-wider">
+                      Deliverables & Project Files ({projectFiles.length})
+                    </h3>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      Brand assets, specification documents, feedback screenshots, and milestone deliverables.
+                    </p>
+                  </div>
+
                   <div className="space-y-2">
                     {projectFiles.length === 0 ? (
-                      <p className="text-xs font-normal text-slate-400">No files posted</p>
+                      <div className="rounded-lg border border-dashed border-slate-200 p-4 text-center text-xs text-slate-400">
+                        No files uploaded yet for this project.
+                      </div>
                     ) : (
                       projectFiles.map((f) => (
                         <div
                           key={f.id}
-                          className="flex items-center justify-between rounded border border-slate-200 px-3 py-2 text-xs"
+                          className="flex items-center justify-between rounded-lg border border-slate-200 px-3.5 py-2.5 text-xs hover:bg-slate-50/60 transition-colors"
                         >
                           <div>
-                            <span className="font-medium text-slate-800 block truncate max-w-[220px]">
-                              {f.name}
-                            </span>
+                            <div className="flex items-center gap-2">
+                              <span className="font-semibold text-slate-800 block truncate max-w-[240px]">
+                                {f.name}
+                              </span>
+                              {f.category && (
+                                <span className="rounded bg-slate-100 text-slate-700 px-1.5 py-0.5 text-[10px] font-medium uppercase">
+                                  {f.category.replace('_', ' ')}
+                                </span>
+                              )}
+                            </div>
                             <span className="text-[10px] font-normal text-slate-500">
-                              {(f.sizeBytes / 1024).toFixed(1)} KB • {new Date(f.uploadedAt).toLocaleDateString()}
+                              {(f.sizeBytes / 1024).toFixed(1)} KB • Uploaded by {f.uploadedBy || 'Team'} on {new Date(f.uploadedAt).toLocaleDateString()}
                             </span>
                           </div>
                           <a
                             href={f.url}
+                            download={f.name}
                             target="_blank"
                             rel="noreferrer"
-                            className="flex items-center gap-1 text-xs font-medium text-blue-700 hover:underline"
+                            className="flex items-center gap-1.5 text-xs font-medium text-blue-700 hover:text-blue-900 hover:underline"
                           >
                             <Download className="h-3.5 w-3.5" />
                             Download
@@ -680,6 +769,21 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
                       ))
                     )}
                   </div>
+
+                  {/* Client File Upload Box */}
+                  {onAddFile && (
+                    <div className="pt-3 border-t border-slate-100">
+                      <ClientFileUploadZone
+                        projectId={selectedProject.id}
+                        projectName={selectedProject.name}
+                        clientUserId={clientUser?.id || `cu-${client.id}`}
+                        clientUserName={clientUser?.name || client.contactName}
+                        onFileUploaded={(newFile) => {
+                          onAddFile(selectedProject.id, newFile);
+                        }}
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -756,8 +860,32 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
               </div>
             </div>
           ) : (
-            <div className="rounded-lg border border-dashed border-slate-300 p-8 text-center text-xs font-normal text-slate-500">
-              No projects created yet for this client account.
+            <div className="rounded-xl border border-dashed border-slate-300 bg-white p-10 text-center">
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-500">
+                <FolderKanban className="h-6 w-6" />
+              </div>
+              <h3 className="mt-4 text-sm font-semibold text-slate-900">
+                No Active Projects Initialized Yet
+              </h3>
+              <p className="mt-1.5 max-w-md mx-auto text-xs text-slate-500 leading-relaxed">
+                Your engineering workspace, milestone sign-off gates, deliverable files, and communication thread activate once an initial architectural proposal is authorized.
+              </p>
+              <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => onTabChange('proposals')}
+                  className="rounded-lg bg-slate-900 px-4 py-2 text-xs font-medium text-white hover:bg-slate-800 transition-colors"
+                >
+                  Review Pending Proposals ({proposals.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onTabChange('support')}
+                  className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+                >
+                  Open Support Inquiry
+                </button>
+              </div>
             </div>
           )}
         </div>
@@ -774,8 +902,16 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
           </div>
 
           {invoices.length === 0 ? (
-            <div className="rounded-lg border border-dashed border-slate-300 p-8 text-center text-xs font-normal text-slate-500">
-              No invoices issued for {client.companyName}.
+            <div className="rounded-xl border border-dashed border-slate-300 bg-white p-10 text-center">
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-500">
+                <Receipt className="h-6 w-6" />
+              </div>
+              <h3 className="mt-4 text-sm font-semibold text-slate-900">
+                No Invoices Issued for {client.companyName}
+              </h3>
+              <p className="mt-1.5 max-w-md mx-auto text-xs text-slate-500 leading-relaxed">
+                You have no outstanding or pending payment items. When milestone invoices are released, you can review line items, download tax copies, and complete settlement via Razorpay.
+              </p>
             </div>
           ) : (
             <div className="space-y-4">
@@ -863,6 +999,36 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
             </div>
           )}
         </div>
+      )}
+
+      {/* VIEW 5: SUPPORT CHANNEL */}
+      {activeTab === 'support' && (
+        <ClientSupportView
+          client={client}
+          clientUser={clientUser}
+          projects={projects}
+          supportIssues={supportIssues}
+          onCreateSupportIssue={(data) => {
+            if (onCreateSupportIssue) {
+              onCreateSupportIssue(data);
+            }
+          }}
+        />
+      )}
+
+      {/* VIEW 6: ACCOUNT SETTINGS & CONSOLIDATED INVOICES */}
+      {activeTab === 'settings' && (
+        <ClientAccountSettingsView
+          client={client}
+          clientUser={clientUser}
+          invoices={invoices}
+          onUpdateProfile={(updated) => {
+            if (onUpdateClientProfile) {
+              onUpdateClientProfile(updated);
+            }
+          }}
+          onOpenRazorpayModal={onOpenRazorpayModal}
+        />
       )}
 
       {/* Modal: Decline Proposal */}

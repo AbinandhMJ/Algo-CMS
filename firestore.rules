@@ -1,0 +1,94 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function isInternalUser() {
+      return isSignedIn() && (
+        request.auth.token.role == 'admin' ||
+        request.auth.token.role == 'member' ||
+        request.auth.token.email.matches('.*@algotricz\\.com')
+      );
+    }
+    
+    function isClientUser(clientId) {
+      return isSignedIn() && request.auth.token.clientId == clientId;
+    }
+
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow write: if isInternalUser();
+    }
+
+    match /clients/{clientId} {
+      allow read: if isInternalUser() || isClientUser(clientId);
+      allow update: if isInternalUser() || isClientUser(clientId);
+      allow create, delete: if isInternalUser();
+    }
+
+    match /clientUsers/{clientUserId} {
+      allow read: if isInternalUser() || (isSignedIn() && request.auth.uid == clientUserId);
+      allow write: if isInternalUser() || (isSignedIn() && request.auth.uid == clientUserId);
+    }
+
+    match /proposals/{proposalId} {
+      allow read: if isInternalUser() || (isSignedIn() && isClientUser(resource.data.clientId));
+      allow write: if isInternalUser() || (isSignedIn() && isClientUser(resource.data.clientId));
+    }
+
+    match /projects/{projectId} {
+      allow read: if isInternalUser() || (isSignedIn() && isClientUser(resource.data.clientId));
+      allow write: if isInternalUser();
+    }
+
+    match /milestones/{milestoneId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+
+    match /tasks/{taskId} {
+      allow read: if isSignedIn();
+      allow write: if isInternalUser();
+    }
+
+    match /files/{fileId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update, delete: if isInternalUser();
+    }
+
+    match /comments/{commentId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update, delete: if isInternalUser();
+    }
+
+    match /activity/{activityId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update, delete: if isInternalUser();
+    }
+
+    match /invoices/{invoiceId} {
+      allow read: if isInternalUser() || (isSignedIn() && isClientUser(resource.data.clientId));
+      allow write: if isInternalUser() || (isSignedIn() && isClientUser(resource.data.clientId));
+    }
+
+    match /notifications/{notificationId} {
+      allow read: if isSignedIn();
+      allow update: if isSignedIn();
+      allow create: if isSignedIn();
+      allow delete: if isInternalUser();
+    }
+
+    match /supportIssues/{issueId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isSignedIn();
+      allow delete: if isInternalUser();
+    }
+  }
+}

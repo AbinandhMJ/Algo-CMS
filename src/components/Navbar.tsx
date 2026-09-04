@@ -10,18 +10,29 @@ import {
   Check,
   LogOut,
   ChevronDown,
+  CalendarRange,
+  HelpCircle,
+  Settings,
 } from 'lucide-react';
 import { Client, AppNotification, GoogleWorkspaceState } from '../types';
+import { ClientNotificationCenter } from './client/ClientNotificationCenter';
 
 export type InternalViewTab =
   | 'dashboard'
   | 'clients'
   | 'proposals'
   | 'projects'
+  | 'timeline'
   | 'invoices'
   | 'workspace';
 
-export type ClientViewTab = 'overview' | 'proposals' | 'projects' | 'invoices';
+export type ClientViewTab =
+  | 'overview'
+  | 'proposals'
+  | 'projects'
+  | 'invoices'
+  | 'support'
+  | 'settings';
 
 interface NavbarProps {
   currentMode: 'internal' | 'client';
@@ -35,6 +46,9 @@ interface NavbarProps {
   onClientSelect: (clientId: string) => void;
   notifications: AppNotification[];
   onMarkNotificationRead: (id: string) => void;
+  onMarkAllNotificationsRead?: (recipientId: string) => void;
+  recipientId?: string;
+  onLogout?: () => void;
   googleWorkspace: GoogleWorkspaceState;
   onConnectGoogleWorkspace: () => void;
   onDisconnectGoogleWorkspace: () => void;
@@ -52,6 +66,9 @@ export const Navbar: React.FC<NavbarProps> = ({
   onClientSelect,
   notifications,
   onMarkNotificationRead,
+  onMarkAllNotificationsRead,
+  recipientId,
+  onLogout,
   googleWorkspace,
   onConnectGoogleWorkspace,
   onDisconnectGoogleWorkspace,
@@ -210,81 +227,111 @@ export const Navbar: React.FC<NavbarProps> = ({
             </button>
           )}
 
-          {/* Notifications button */}
-          <div className="relative">
-            <button
-              id="notifications-toggle-btn"
-              type="button"
-              onClick={() => setIsNotifOpen(!isNotifOpen)}
-              className="relative rounded p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-800"
-              aria-label="View notifications"
-            >
-              <Bell className="h-4 w-4" />
-              {unreadNotifications.length > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-slate-900 text-[9px] font-medium text-white">
-                  {unreadNotifications.length}
-                </span>
-              )}
-            </button>
-
-            {isNotifOpen && (
-              <div
-                id="notifications-drawer"
-                className="absolute right-0 mt-2 w-80 rounded-md border border-slate-200 bg-white shadow-lg"
+          {/* Scoped Notifications */}
+          {currentMode === 'client' ? (
+            <ClientNotificationCenter
+              notifications={notifications}
+              recipientId={recipientId || activeClientId}
+              onMarkRead={onMarkNotificationRead}
+              onMarkAllRead={(recId) => {
+                if (onMarkAllNotificationsRead) {
+                  onMarkAllNotificationsRead(recId);
+                }
+              }}
+              onNavigateTab={(tab) => {
+                onClientTabChange(tab as ClientViewTab);
+              }}
+            />
+          ) : (
+            <div className="relative">
+              <button
+                id="notifications-toggle-btn"
+                type="button"
+                onClick={() => setIsNotifOpen(!isNotifOpen)}
+                className="relative rounded-lg border border-slate-200 bg-white p-2 text-slate-500 hover:bg-slate-50 hover:text-slate-800 shadow-2xs transition-colors"
+                aria-label="View notifications"
               >
-                <div className="flex items-center justify-between border-b border-slate-200 px-4 py-2.5">
-                  <span className="text-xs font-medium text-slate-800">
-                    Notifications ({unreadNotifications.length} unread)
+                <Bell className="h-4 w-4" />
+                {unreadNotifications.length > 0 && (
+                  <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[9px] font-semibold text-white ring-2 ring-white">
+                    {unreadNotifications.length}
                   </span>
-                  <button
-                    id="close-notifications-btn"
-                    type="button"
-                    onClick={() => setIsNotifOpen(false)}
-                    className="text-xs font-normal text-slate-500 hover:text-slate-800"
-                  >
-                    Close
-                  </button>
-                </div>
-                <div className="max-h-72 divide-y divide-slate-100 overflow-y-auto">
-                  {notifications.length === 0 ? (
-                    <div className="p-4 text-center text-xs font-normal text-slate-500">
-                      No notifications recorded
-                    </div>
-                  ) : (
-                    notifications.map((n) => (
-                      <div
-                        key={n.id}
-                        className={`p-3 text-xs transition-colors ${
-                          n.read ? 'bg-white opacity-70' : 'bg-slate-50'
-                        }`}
-                      >
-                        <div className="flex items-start justify-between">
-                          <p className="font-medium text-slate-800">{n.title}</p>
-                          {!n.read && (
-                            <button
-                              id={`mark-read-btn-${n.id}`}
-                              type="button"
-                              onClick={() => onMarkNotificationRead(n.id)}
-                              className="text-[10px] font-normal text-blue-700 hover:underline"
-                            >
-                              Mark read
-                            </button>
-                          )}
-                        </div>
-                        <p className="mt-1 font-normal text-slate-600">{n.body}</p>
-                        <span className="mt-1.5 block text-[10px] font-normal text-slate-400">
-                          {new Date(n.createdAt).toLocaleTimeString([], {
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}
-                        </span>
+                )}
+              </button>
+
+              {isNotifOpen && (
+                <div
+                  id="notifications-drawer"
+                  className="absolute right-0 mt-2 w-80 rounded-xl border border-slate-200 bg-white shadow-lg z-50 overflow-hidden"
+                >
+                  <div className="flex items-center justify-between border-b border-slate-200 px-4 py-2.5 bg-slate-50/70">
+                    <span className="text-xs font-medium text-slate-800">
+                      Notifications ({unreadNotifications.length} unread)
+                    </span>
+                    <button
+                      id="close-notifications-btn"
+                      type="button"
+                      onClick={() => setIsNotifOpen(false)}
+                      className="text-xs font-normal text-slate-500 hover:text-slate-800"
+                    >
+                      Close
+                    </button>
+                  </div>
+                  <div className="max-h-72 divide-y divide-slate-100 overflow-y-auto">
+                    {notifications.length === 0 ? (
+                      <div className="p-4 text-center text-xs font-normal text-slate-500">
+                        No notifications recorded
                       </div>
-                    ))
-                  )}
+                    ) : (
+                      notifications.map((n) => (
+                        <div
+                          key={n.id}
+                          className={`p-3 text-xs transition-colors ${
+                            n.read ? 'bg-white opacity-70' : 'bg-slate-50'
+                          }`}
+                        >
+                          <div className="flex items-start justify-between">
+                            <p className="font-medium text-slate-800">{n.title}</p>
+                            {!n.read && (
+                              <button
+                                id={`mark-read-btn-${n.id}`}
+                                type="button"
+                                onClick={() => onMarkNotificationRead(n.id)}
+                                className="text-[10px] font-normal text-blue-700 hover:underline"
+                              >
+                                Mark read
+                              </button>
+                            )}
+                          </div>
+                          <p className="mt-1 font-normal text-slate-600">{n.body}</p>
+                          <span className="mt-1.5 block text-[10px] font-normal text-slate-400">
+                            {new Date(n.createdAt).toLocaleTimeString([], {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
+                          </span>
+                        </div>
+                      ))
+                    )}
+                  </div>
                 </div>
-              </div>
-            )}
-          </div>
+              )}
+            </div>
+          )}
+
+          {/* Sign Out Action Button */}
+          {onLogout && (
+            <button
+              id="app-signout-btn"
+              type="button"
+              onClick={onLogout}
+              title="Sign out & return to login"
+              className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 hover:text-slate-900 transition-colors shadow-2xs"
+            >
+              <LogOut className="h-3.5 w-3.5 text-slate-500" />
+              <span className="hidden sm:inline">Sign Out</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -297,7 +344,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 id="nav-internal-dashboard"
                 type="button"
                 onClick={() => onInternalTabChange('dashboard')}
-                className={`flex items-center gap-1.5 rounded px-3 py-1.5 transition-colors ${
+                className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 transition-colors shrink-0 ${
                   activeInternalTab === 'dashboard'
                     ? 'bg-white font-medium text-slate-900 shadow-xs border border-slate-200'
                     : 'font-normal text-slate-600 hover:bg-slate-100 hover:text-slate-900'
@@ -310,7 +357,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 id="nav-internal-clients"
                 type="button"
                 onClick={() => onInternalTabChange('clients')}
-                className={`flex items-center gap-1.5 rounded px-3 py-1.5 transition-colors ${
+                className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 transition-colors shrink-0 ${
                   activeInternalTab === 'clients'
                     ? 'bg-white font-medium text-slate-900 shadow-xs border border-slate-200'
                     : 'font-normal text-slate-600 hover:bg-slate-100 hover:text-slate-900'
@@ -323,7 +370,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 id="nav-internal-proposals"
                 type="button"
                 onClick={() => onInternalTabChange('proposals')}
-                className={`flex items-center gap-1.5 rounded px-3 py-1.5 transition-colors ${
+                className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 transition-colors shrink-0 ${
                   activeInternalTab === 'proposals'
                     ? 'bg-white font-medium text-slate-900 shadow-xs border border-slate-200'
                     : 'font-normal text-slate-600 hover:bg-slate-100 hover:text-slate-900'
@@ -336,7 +383,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 id="nav-internal-projects"
                 type="button"
                 onClick={() => onInternalTabChange('projects')}
-                className={`flex items-center gap-1.5 rounded px-3 py-1.5 transition-colors ${
+                className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 transition-colors shrink-0 ${
                   activeInternalTab === 'projects'
                     ? 'bg-white font-medium text-slate-900 shadow-xs border border-slate-200'
                     : 'font-normal text-slate-600 hover:bg-slate-100 hover:text-slate-900'
@@ -346,10 +393,23 @@ export const Navbar: React.FC<NavbarProps> = ({
                 Projects
               </button>
               <button
+                id="nav-internal-timeline"
+                type="button"
+                onClick={() => onInternalTabChange('timeline')}
+                className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 transition-colors shrink-0 ${
+                  activeInternalTab === 'timeline'
+                    ? 'bg-white font-medium text-slate-900 shadow-xs border border-slate-200'
+                    : 'font-normal text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                }`}
+              >
+                <CalendarRange className="h-3.5 w-3.5" />
+                Gantt Timeline
+              </button>
+              <button
                 id="nav-internal-invoices"
                 type="button"
                 onClick={() => onInternalTabChange('invoices')}
-                className={`flex items-center gap-1.5 rounded px-3 py-1.5 transition-colors ${
+                className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 transition-colors shrink-0 ${
                   activeInternalTab === 'invoices'
                     ? 'bg-white font-medium text-slate-900 shadow-xs border border-slate-200'
                     : 'font-normal text-slate-600 hover:bg-slate-100 hover:text-slate-900'
@@ -362,32 +422,32 @@ export const Navbar: React.FC<NavbarProps> = ({
                 id="nav-internal-workspace"
                 type="button"
                 onClick={() => onInternalTabChange('workspace')}
-                className={`flex items-center gap-1.5 rounded px-3 py-1.5 transition-colors ${
+                className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 transition-colors shrink-0 ${
                   activeInternalTab === 'workspace'
                     ? 'bg-white font-medium text-slate-900 shadow-xs border border-slate-200'
                     : 'font-normal text-slate-600 hover:bg-slate-100 hover:text-slate-900'
                 }`}
               >
                 <Share2 className="h-3.5 w-3.5" />
-                Google Workspace Automation
+                Google Workspace
               </button>
             </>
           ) : (
             <>
-              <div className="mr-2 flex items-center gap-1.5 border-r border-slate-200 pr-3">
+              <div className="mr-2 flex items-center gap-1.5 border-r border-slate-200 pr-3 shrink-0">
                 <span className="h-2 w-2 rounded-full bg-blue-600" />
-                <span className="font-medium text-slate-800">
+                <span className="font-semibold text-slate-900">
                   {activeClient ? activeClient.companyName : 'Client Portal'}
                 </span>
-                <span className="rounded bg-slate-200 px-1.5 py-0.5 text-[10px] font-normal text-slate-700">
-                  Client View
+                <span className="rounded bg-slate-200 px-1.5 py-0.5 text-[10px] font-medium text-slate-700">
+                  Client Portal
                 </span>
               </div>
               <button
                 id="nav-client-overview"
                 type="button"
                 onClick={() => onClientTabChange('overview')}
-                className={`flex items-center gap-1.5 rounded px-3 py-1.5 transition-colors ${
+                className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 transition-colors shrink-0 ${
                   activeClientTab === 'overview'
                     ? 'bg-white font-medium text-slate-900 shadow-xs border border-slate-200'
                     : 'font-normal text-slate-600 hover:bg-slate-100 hover:text-slate-900'
@@ -399,37 +459,63 @@ export const Navbar: React.FC<NavbarProps> = ({
                 id="nav-client-proposals"
                 type="button"
                 onClick={() => onClientTabChange('proposals')}
-                className={`flex items-center gap-1.5 rounded px-3 py-1.5 transition-colors ${
+                className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 transition-colors shrink-0 ${
                   activeClientTab === 'proposals'
                     ? 'bg-white font-medium text-slate-900 shadow-xs border border-slate-200'
                     : 'font-normal text-slate-600 hover:bg-slate-100 hover:text-slate-900'
                 }`}
               >
-                Proposals & Approvals
+                Proposals & Scope
               </button>
               <button
                 id="nav-client-projects"
                 type="button"
                 onClick={() => onClientTabChange('projects')}
-                className={`flex items-center gap-1.5 rounded px-3 py-1.5 transition-colors ${
+                className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 transition-colors shrink-0 ${
                   activeClientTab === 'projects'
                     ? 'bg-white font-medium text-slate-900 shadow-xs border border-slate-200'
                     : 'font-normal text-slate-600 hover:bg-slate-100 hover:text-slate-900'
                 }`}
               >
-                Active Projects & Milestones
+                Active Projects & Deliverables
               </button>
               <button
                 id="nav-client-invoices"
                 type="button"
                 onClick={() => onClientTabChange('invoices')}
-                className={`flex items-center gap-1.5 rounded px-3 py-1.5 transition-colors ${
+                className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 transition-colors shrink-0 ${
                   activeClientTab === 'invoices'
                     ? 'bg-white font-medium text-slate-900 shadow-xs border border-slate-200'
                     : 'font-normal text-slate-600 hover:bg-slate-100 hover:text-slate-900'
                 }`}
               >
-                Invoices & Payments
+                Invoices & Billing
+              </button>
+              <button
+                id="nav-client-support"
+                type="button"
+                onClick={() => onClientTabChange('support')}
+                className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 transition-colors shrink-0 ${
+                  activeClientTab === 'support'
+                    ? 'bg-white font-medium text-slate-900 shadow-xs border border-slate-200'
+                    : 'font-normal text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                }`}
+              >
+                <HelpCircle className="h-3.5 w-3.5 text-amber-600" />
+                Support Channel
+              </button>
+              <button
+                id="nav-client-settings"
+                type="button"
+                onClick={() => onClientTabChange('settings')}
+                className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 transition-colors shrink-0 ${
+                  activeClientTab === 'settings'
+                    ? 'bg-white font-medium text-slate-900 shadow-xs border border-slate-200'
+                    : 'font-normal text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                }`}
+              >
+                <Settings className="h-3.5 w-3.5 text-slate-500" />
+                Account Settings
               </button>
             </>
           )}
