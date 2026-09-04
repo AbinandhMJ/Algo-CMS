@@ -22,7 +22,7 @@ interface ClientNotificationCenterProps {
 }
 
 export const ClientNotificationCenter: React.FC<ClientNotificationCenterProps> = ({
-  notifications,
+  notifications = [],
   recipientId,
   onMarkRead,
   onMarkAllRead,
@@ -32,8 +32,9 @@ export const ClientNotificationCenter: React.FC<ClientNotificationCenterProps> =
   const [filter, setFilter] = useState<'all' | 'unread'>('all');
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const unreadCount = notifications.filter((n) => !n.read).length;
-  const filteredNotifications = notifications.filter((n) => {
+  const safeNotifications = notifications || [];
+  const unreadCount = safeNotifications.filter((n) => !n.read).length;
+  const filteredNotifications = safeNotifications.filter((n) => {
     if (filter === 'unread') return !n.read;
     return true;
   });

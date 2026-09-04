@@ -20,19 +20,28 @@ import { Client, ClientUser, Invoice } from '../../types';
 interface ClientAccountSettingsViewProps {
   client: Client;
   clientUser?: ClientUser | null;
-  invoices: Invoice[];
-  onUpdateClient: (clientId: string, updates: Partial<Client>) => void;
+  invoices?: Invoice[];
+  onUpdateClient?: (clientId: string, updates: Partial<Client>) => void;
   onUpdateClientUser?: (clientUserId: string, updates: Partial<ClientUser>) => void;
-  onPayInvoice: (invoiceId: string) => void;
+  onPayInvoice?: (invoiceId: string) => void;
+  onUpdateProfile?: (updated: {
+    companyName: string;
+    contactName: string;
+    contactEmail: string;
+    phone?: string;
+  }) => void;
+  onOpenRazorpayModal?: (invoice: Invoice) => void;
 }
 
 export const ClientAccountSettingsView: React.FC<ClientAccountSettingsViewProps> = ({
   client,
   clientUser,
-  invoices,
+  invoices = [],
   onUpdateClient,
   onUpdateClientUser,
   onPayInvoice,
+  onUpdateProfile,
+  onOpenRazorpayModal,
 }) => {
   const [activeTab, setActiveTab] = useState<'profile' | 'invoices'>('profile');
 
@@ -46,21 +55,31 @@ export const ClientAccountSettingsView: React.FC<ClientAccountSettingsViewProps>
   const [copiedKey, setCopiedKey] = useState(false);
 
   // Financial aggregates
-  const totalBilled = invoices.reduce((sum, inv) => sum + inv.totalAmount, 0);
-  const totalPaid = invoices
+  const safeInvoices = invoices || [];
+  const totalBilled = safeInvoices.reduce((sum, inv) => sum + (inv.totalAmount || 0), 0);
+  const totalPaid = safeInvoices
     .filter((inv) => inv.status === 'paid')
-    .reduce((sum, inv) => sum + inv.totalAmount, 0);
+    .reduce((sum, inv) => sum + (inv.totalAmount || 0), 0);
   const totalOutstanding = totalBilled - totalPaid;
 
   const handleProfileSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onUpdateClient(client.id, {
-      companyName,
-      contactName,
-      contactEmail,
-      phone,
-      portalAccessKey: portalKey,
-    });
+    if (onUpdateProfile) {
+      onUpdateProfile({
+        companyName,
+        contactName,
+        contactEmail,
+        phone,
+      });
+    } else if (onUpdateClient) {
+      onUpdateClient(client.id, {
+        companyName,
+        contactName,
+        contactEmail,
+        phone,
+        portalAccessKey: portalKey,
+      });
+    }
 
     if (clientUser && onUpdateClientUser) {
       onUpdateClientUser(clientUser.id, {
@@ -311,7 +330,7 @@ export const ClientAccountSettingsView: React.FC<ClientAccountSettingsViewProps>
               </div>
             </div>
 
-            {invoices.length === 0 ? (
+            {safeInvoices.length === 0 ? (
               <div className="p-8 text-center">
                 <Receipt className="h-8 w-8 text-slate-300 mx-auto stroke-1" />
                 <p className="mt-2 text-xs font-medium text-slate-700">No invoices issued yet</p>
@@ -333,7 +352,7 @@ export const ClientAccountSettingsView: React.FC<ClientAccountSettingsViewProps>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {invoices.map((inv) => (
+                    {safeInvoices.map((inv) => (
                       <tr key={inv.id} className="hover:bg-slate-50/60">
                         <td className="py-3 px-4 font-mono font-medium text-slate-900">
                           {inv.invoiceNumber}
@@ -375,7 +394,13 @@ export const ClientAccountSettingsView: React.FC<ClientAccountSettingsViewProps>
                           ) : (
                             <button
                               type="button"
-                              onClick={() => onPayInvoice(inv.id)}
+                              onClick={() => {
+                                if (onOpenRazorpayModal) {
+                                  onOpenRazorpayModal(inv);
+                                } else if (onPayInvoice) {
+                                  onPayInvoice(inv.id);
+                                }
+                              }}
                               className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-700 px-3 py-1.5 text-[11px] font-medium text-white shadow-2xs hover:bg-emerald-800 transition-colors"
                             >
                               <CreditCard className="h-3 w-3" />

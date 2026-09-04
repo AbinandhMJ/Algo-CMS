@@ -124,7 +124,10 @@ export default function App() {
   const scopedClientData = store.getScopedClientData(activeClientId);
 
   // --- Google Workspace Handlers ---
+  const [isGoogleSigningIn, setIsGoogleSigningIn] = useState(false);
+
   const handleConnectGoogleWorkspace = async () => {
+    setIsGoogleSigningIn(true);
     try {
       showToast('Opening Google Workspace OAuth popup...', 'info');
       const authResult = await googleSignIn();
@@ -143,6 +146,8 @@ export default function App() {
     } catch (err: any) {
       console.error(err);
       showToast(err.message || 'Google Workspace connection failed.', 'error');
+    } finally {
+      setIsGoogleSigningIn(false);
     }
   };
 
@@ -379,8 +384,15 @@ export default function App() {
           </div>
         )}
         <AuthView
+          clients={store.clients}
+          clientUsers={store.clientUsers}
+          internalUsers={store.users}
+          onClientLogin={(cu) => handleClientLogin(cu)}
           onClientAuthenticated={handleClientLogin}
+          onInternalLogin={() => handleInternalLogin()}
           onInternalAuthenticated={handleInternalLogin}
+          onGoogleWorkspaceSignIn={handleConnectGoogleWorkspace}
+          isGoogleSigningIn={isGoogleSigningIn}
         />
       </div>
     );

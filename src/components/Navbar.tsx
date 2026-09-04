@@ -61,10 +61,10 @@ export const Navbar: React.FC<NavbarProps> = ({
   onInternalTabChange,
   activeClientTab,
   onClientTabChange,
-  clients,
+  clients = [],
   activeClientId,
   onClientSelect,
-  notifications,
+  notifications = [],
   onMarkNotificationRead,
   onMarkAllNotificationsRead,
   recipientId,
@@ -76,8 +76,11 @@ export const Navbar: React.FC<NavbarProps> = ({
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
 
-  const activeClient = clients.find((c) => c.id === activeClientId) || clients[0];
-  const unreadNotifications = notifications.filter((n) => !n.read);
+  const safeClients = clients || [];
+  const safeNotifications = notifications || [];
+
+  const activeClient = safeClients.find((c) => c.id === activeClientId) || safeClients[0];
+  const unreadNotifications = safeNotifications.filter((n) => !n.read);
 
   return (
     <header id="app-header" className="sticky top-0 z-40 border-b border-slate-200 bg-white">
@@ -142,7 +145,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 aria-label="Select active client view"
                 className="rounded border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium text-slate-800"
               >
-                {clients.map((c) => (
+                {safeClients.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.companyName}
                   </option>
@@ -278,12 +281,12 @@ export const Navbar: React.FC<NavbarProps> = ({
                     </button>
                   </div>
                   <div className="max-h-72 divide-y divide-slate-100 overflow-y-auto">
-                    {notifications.length === 0 ? (
+                    {safeNotifications.length === 0 ? (
                       <div className="p-4 text-center text-xs font-normal text-slate-500">
                         No notifications recorded
                       </div>
                     ) : (
-                      notifications.map((n) => (
+                      safeNotifications.map((n) => (
                         <div
                           key={n.id}
                           className={`p-3 text-xs transition-colors ${

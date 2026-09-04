@@ -90,14 +90,14 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
   clientUser,
   activeTab,
   onTabChange,
-  projects,
-  proposals,
-  invoices,
-  milestones,
-  tasks,
-  files,
-  comments,
-  activity,
+  projects = [],
+  proposals = [],
+  invoices = [],
+  milestones = [],
+  tasks = [],
+  files = [],
+  comments = [],
+  activity = [],
   supportIssues = [],
   onCreateSupportIssue,
   onAddFile,
@@ -111,7 +111,7 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
 }) => {
   // Selected project for Project detail view
   const [selectedProjectId, setSelectedProjectId] = useState<string>(
-    projects[0]?.id || ''
+    (projects && projects[0]?.id) || ''
   );
 
   // Proposal reject modal state
@@ -496,7 +496,7 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 font-normal text-slate-700">
-                        {prop.lineItems.map((li) => (
+                        {(prop.lineItems || []).map((li) => (
                           <tr key={li.id}>
                             <td className="px-4 py-2">{li.label}</td>
                             <td className="px-4 py-2 text-right font-mono">
@@ -962,7 +962,7 @@ export const ClientPortalView: React.FC<ClientPortalViewProps> = ({
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 font-normal text-slate-700">
-                        {inv.lineItems.map((li) => (
+                        {(inv.lineItems || []).map((li) => (
                           <tr key={li.id}>
                             <td className="px-4 py-2">{li.label}</td>
                             <td className="px-4 py-2 text-right font-mono">

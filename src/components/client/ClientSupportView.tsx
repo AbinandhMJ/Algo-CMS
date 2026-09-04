@@ -39,12 +39,12 @@ interface ClientSupportViewProps {
 export const ClientSupportView: React.FC<ClientSupportViewProps> = ({
   client,
   clientUser,
-  projects,
-  supportIssues,
+  projects = [],
+  supportIssues = [],
   onCreateSupportIssue,
 }) => {
   const [isFormOpen, setIsFormOpen] = useState(false);
-  const [selectedProjectId, setSelectedProjectId] = useState(projects[0]?.id || '');
+  const [selectedProjectId, setSelectedProjectId] = useState((projects && projects[0]?.id) || '');
   const [category, setCategory] = useState<SupportIssueCategory>('technical_blocker');
   const [urgency, setUrgency] = useState<SupportIssueUrgency>('normal');
   const [subject, setSubject] = useState('');

@@ -16,25 +16,45 @@ import {
 import { Client, ClientUser, User } from '../../types';
 
 interface AuthViewProps {
-  clients: Client[];
-  clientUsers: ClientUser[];
-  internalUsers: User[];
-  onClientLogin: (clientUser: ClientUser, client: Client) => void;
-  onInternalLogin: (user: User) => void;
-  onGoogleWorkspaceSignIn: () => Promise<void>;
+  clients?: Client[];
+  clientUsers?: ClientUser[];
+  internalUsers?: User[];
+  onClientLogin?: (clientUser: ClientUser, client: Client) => void;
+  onClientAuthenticated?: (clientUser: ClientUser) => void;
+  onInternalLogin?: (user?: User) => void;
+  onInternalAuthenticated?: () => void;
+  onGoogleWorkspaceSignIn?: () => Promise<void>;
   isGoogleSigningIn?: boolean;
 }
 
 export const AuthView: React.FC<AuthViewProps> = ({
-  clients,
-  clientUsers,
-  internalUsers,
+  clients = [],
+  clientUsers = [],
+  internalUsers = [],
   onClientLogin,
+  onClientAuthenticated,
   onInternalLogin,
+  onInternalAuthenticated,
   onGoogleWorkspaceSignIn,
   isGoogleSigningIn = false,
 }) => {
   const [authRoleTab, setAuthRoleTab] = useState<'client' | 'internal'>('client');
+
+  const triggerClientLogin = (cu: ClientUser, client: Client) => {
+    if (onClientLogin) {
+      onClientLogin(cu, client);
+    } else if (onClientAuthenticated) {
+      onClientAuthenticated(cu);
+    }
+  };
+
+  const triggerInternalLogin = (user?: User) => {
+    if (onInternalLogin && user) {
+      onInternalLogin(user);
+    } else if (onInternalAuthenticated) {
+      onInternalAuthenticated();
+    }
+  };
 
   // Client login form state
   const [clientEmail, setClientEmail] = useState('');
@@ -91,7 +111,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
         name: matchedClient.contactName,
       } as ClientUser);
 
-    onClientLogin(cu, matchedClient);
+    triggerClientLogin(cu, matchedClient);
   };
 
   const handleSendMagicLink = () => {
@@ -101,12 +121,12 @@ export const AuthView: React.FC<AuthViewProps> = ({
       return;
     }
 
-    const matchedClientUser = clientUsers.find(
+    const matchedClientUser = (clientUsers || []).find(
       (cu) => cu.email.toLowerCase() === email
     );
     const matchedClient = matchedClientUser
-      ? clients.find((c) => c.id === matchedClientUser.clientId)
-      : clients.find((c) => c.contactEmail.toLowerCase() === email);
+      ? (clients || []).find((c) => c.id === matchedClientUser.clientId)
+      : (clients || []).find((c) => c.contactEmail.toLowerCase() === email);
 
     if (!matchedClient) {
       setClientAuthError('No client account registered under this email. Select a quick profile below.');
@@ -119,12 +139,12 @@ export const AuthView: React.FC<AuthViewProps> = ({
   };
 
   const handleConfirmMagicLinkClick = () => {
-    const matchedClientUser = clientUsers.find(
+    const matchedClientUser = (clientUsers || []).find(
       (cu) => cu.email.toLowerCase() === magicLinkEmail.toLowerCase()
     );
     const matchedClient = matchedClientUser
-      ? clients.find((c) => c.id === matchedClientUser.clientId)
-      : clients.find((c) => c.contactEmail.toLowerCase() === magicLinkEmail.toLowerCase());
+      ? (clients || []).find((c) => c.id === matchedClientUser.clientId)
+      : (clients || []).find((c) => c.contactEmail.toLowerCase() === magicLinkEmail.toLowerCase());
 
     if (matchedClient) {
       const cu =
@@ -136,7 +156,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
           name: matchedClient.contactName,
         } as ClientUser);
 
-      onClientLogin(cu, matchedClient);
+      triggerClientLogin(cu, matchedClient);
     }
   };
 
@@ -145,14 +165,14 @@ export const AuthView: React.FC<AuthViewProps> = ({
     setInternalAuthError(null);
 
     const email = internalEmail.trim().toLowerCase();
-    const matchedUser = internalUsers.find((u) => u.email.toLowerCase() === email);
+    const matchedUser = (internalUsers || []).find((u) => u.email.toLowerCase() === email);
 
     if (!matchedUser) {
       setInternalAuthError('No internal Algotricz staff account matches this email.');
       return;
     }
 
-    onInternalLogin(matchedUser);
+    triggerInternalLogin(matchedUser);
   };
 
   return (
@@ -333,8 +353,8 @@ export const AuthView: React.FC<AuthViewProps> = ({
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {clients.map((c) => {
-                    const cu = clientUsers.find((u) => u.clientId === c.id) || {
+                  {(clients || []).map((c) => {
+                    const cu = (clientUsers || []).find((u) => u.clientId === c.id) || {
                       id: `cu-${c.id}`,
                       clientId: c.id,
                       name: c.contactName,
@@ -347,7 +367,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
                         key={c.id}
                         id={`quick-client-login-${c.id}`}
                         type="button"
-                        onClick={() => onClientLogin(cu, c)}
+                        onClick={() => triggerClientLogin(cu, c)}
                         className="group flex flex-col items-start rounded-lg border border-slate-200 bg-slate-50/80 p-2.5 text-left hover:border-slate-400 hover:bg-white transition-all text-xs"
                       >
                         <div className="flex items-center justify-between w-full">
@@ -473,11 +493,11 @@ export const AuthView: React.FC<AuthViewProps> = ({
                   Staff Quick Select
                 </span>
                 <div className="flex gap-2">
-                  {internalUsers.map((u) => (
+                  {(internalUsers || []).map((u) => (
                     <button
                       key={u.id}
                       type="button"
-                      onClick={() => onInternalLogin(u)}
+                      onClick={() => triggerInternalLogin(u)}
                       className="flex-1 rounded-lg border border-slate-200 bg-slate-50 p-2 text-left hover:border-slate-400 hover:bg-white text-xs"
                     >
                       <span className="font-medium text-slate-900 block truncate">{u.name}</span>
